@@ -138,8 +138,14 @@
   .notabs{color:var(--muted);text-align:center;padding:24px 0;font-size:15px}
   .subtle{color:var(--muted);font-size:13px}
   .dangerlink{background:none;border:none;color:var(--red);font-weight:700;font-size:14px;text-decoration:underline;cursor:pointer;padding:6px 0}
-  .flash{position:fixed;left:50%;top:70px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:12px;font-weight:800;z-index:60;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none}
+  .flash{position:fixed;left:50%;top:70px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 14px;border-radius:12px;font-weight:800;z-index:60;opacity:0;transition:opacity .2s,transform .2s;display:flex;align-items:center;gap:12px;max-width:92vw}
+  .flash:not(.on){pointer-events:none}
   .flash.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  .flash-act{background:var(--gold);color:#3a2419;border:none;border-radius:9px;padding:8px 12px;font-weight:800;font-size:14px;cursor:pointer}
+  .exp-area{width:100%;min-height:200px;font-family:ui-monospace,Menlo,monospace;font-size:13px;border:2px solid var(--line);border-radius:12px;padding:10px;background:#fff;color:var(--ink);resize:vertical}
+  .exp-btns{display:flex;gap:8px;margin-top:10px}
+  .exp-btns button{flex:1;border:none;border-radius:12px;padding:13px;font-weight:800;font-size:15px;cursor:pointer;color:#fff}
+  .exp-copy{background:var(--brown)}.exp-share{background:var(--green)}.exp-dl{background:var(--red)}
 </style>
 </head>
 <body>
@@ -175,8 +181,23 @@
     <button class="addbtn" id="addItem">+ Add item</button>
     <p class="hint">Prices can be whole dollars ($3) or cents ($2.50). Max 10 items. Changes don’t affect tabs already open.</p>
     <button class="bigsave" data-close>Done</button>
-    <div style="text-align:center;margin-top:14px">
+    <div style="text-align:center;margin-top:14px;display:flex;flex-direction:column;gap:8px">
+      <button class="addbtn" id="exportBtn" style="border-color:var(--green);color:var(--green-dk)">⬇︎ Backup / export today’s totals</button>
       <button class="dangerlink" id="resetDay">Reset “raised today” to $0</button>
+    </div>
+  </div>
+</div>
+
+<!-- Export sheet -->
+<div class="scrim" id="exportScrim">
+  <div class="sheet">
+    <h2>Backup / export <button class="close" data-close>✕</button></h2>
+    <p class="hint" style="margin-top:0">A snapshot of what you’ve raised and every open tab. Copy it, text it to yourself, or save the file.</p>
+    <textarea class="exp-area" id="exportArea" readonly></textarea>
+    <div class="exp-btns">
+      <button class="exp-copy" id="expCopy">Copy</button>
+      <button class="exp-share" id="expShare">Share</button>
+      <button class="exp-dl" id="expDl">Save file</button>
     </div>
   </div>
 </div>
@@ -306,10 +327,19 @@
   function markPaid(){
     if(!orderCount()) return;
     var amt=orderTotal();
+    var snap=orderSnapshot();
+    var restoredTab=null;
+    if(editingTabId){ restoredTab=tabById(editingTabId); state.tabs=state.tabs.filter(function(t){return t.id!==editingTabId;}); }
     state.raised=(state.raised||0)+amt;
-    if(editingTabId){ state.tabs=state.tabs.filter(function(t){return t.id!==editingTabId;}); }
     save(); clearOrder();
-    flash('Paid '+money(amt)+' ✓');
+    flash('Paid '+money(amt)+' ✓','Undo',function(){
+      state.raised=Math.max(0,(state.raised||0)-amt);
+      if(restoredTab){ state.tabs.push(restoredTab); editingTabId=restoredTab.id; }
+      else editingTabId=null;
+      loadSnapshotIntoOrder(snap);
+      save(); renderGrid(); renderTray(); renderTabBadge();
+      window.scrollTo(0,document.body.scrollHeight);
+    });
   }
 
   function startOrUpdateTab(){
@@ -334,19 +364,19 @@
     else dot.style.display='none';
   }
 
-  function openTabIntoOrder(id){
-    var t=tabById(id); if(!t) return;
-    order={}; editingTabId=id;
-    // rebuild order from snapshot, matching by current items when possible, else keep as ad-hoc
-    t.lines.forEach(function(l){
+  // rebuild the working order from a saved snapshot, matching current items when possible
+  function loadSnapshotIntoOrder(lines){
+    order={};
+    lines.forEach(function(l){
       var match=null;
       for(var i=0;i<state.items.length;i++){ if(state.items[i].name===l.name && state.items[i].price===l.price){match=state.items[i];break;} }
       if(match){ order[match.id]=(order[match.id]||0)+l.qty; }
-      else { // item was edited/removed: recreate a temporary item so it still tallies
-        var tmp={id:uid(),name:l.name,price:l.price,_temp:true};
-        state.items.push(tmp); order[tmp.id]=l.qty;
-      }
+      else { var tmp={id:uid(),name:l.name,price:l.price,_temp:true}; state.items.push(tmp); order[tmp.id]=l.qty; }
     });
+  }
+  function openTabIntoOrder(id){
+    var t=tabById(id); if(!t) return;
+    editingTabId=id; loadSnapshotIntoOrder(t.lines);
     closeSheet('tabsScrim'); renderGrid(); renderTray();
     window.scrollTo(0,document.body.scrollHeight);
   }
@@ -365,10 +395,16 @@
       var pay=document.createElement('button'); pay.className='ti-pay'; pay.textContent='Paid';
       pay.addEventListener('click',function(ev){
         ev.stopPropagation();
-        state.raised=(state.raised||0)+snapshotTotal(t.lines);
+        var amt=snapshotTotal(t.lines), settled=t;
+        state.raised=(state.raised||0)+amt;
         state.tabs=state.tabs.filter(function(x){return x.id!==t.id;});
         save(); renderTabList(); renderTabBadge(); renderRaised();
-        flash('Tab settled ✓');
+        flash('Tab settled ✓','Undo',function(){
+          state.raised=Math.max(0,(state.raised||0)-amt);
+          state.tabs.push(settled); save();
+          renderTabBadge(); renderRaised();
+          renderTabList(); openSheet('tabsScrim');
+        });
         if(!state.tabs.length) closeSheet('tabsScrim');
       });
       el.appendChild(pay);
@@ -406,9 +442,41 @@
 
   /* ---------- flash ---------- */
   var flashT;
-  function flash(msg){
-    var f=document.getElementById('flash'); f.textContent=msg; f.classList.add('on');
-    clearTimeout(flashT); flashT=setTimeout(function(){f.classList.remove('on');},1400);
+  function flash(msg,actionLabel,actionFn){
+    var f=document.getElementById('flash'); f.innerHTML='';
+    var span=document.createElement('span'); span.textContent=msg; f.appendChild(span);
+    if(actionLabel&&actionFn){
+      var b=document.createElement('button'); b.className='flash-act'; b.textContent=actionLabel;
+      b.addEventListener('click',function(){ f.classList.remove('on'); actionFn(); });
+      f.appendChild(b);
+    }
+    f.classList.add('on');
+    clearTimeout(flashT); flashT=setTimeout(function(){f.classList.remove('on');}, actionLabel?6000:1400);
+  }
+
+  /* ---------- backup / export ---------- */
+  function buildReport(){
+    var d=new Date(), L=[];
+    L.push('BAKE SALE — '+d.toLocaleString());
+    L.push('Raised (paid): '+money(state.raised||0));
+    L.push('');
+    var owed=0;
+    if(state.tabs.length){
+      L.push('OPEN TABS ('+state.tabs.length+'):');
+      state.tabs.forEach(function(t){
+        var tt=snapshotTotal(t.lines); owed+=tt;
+        L.push('  • '+t.name+' — '+money(tt));
+        t.lines.forEach(function(l){ L.push('       '+l.qty+'x '+l.name+'  '+money(l.price*l.qty)); });
+      });
+    }else{ L.push('No open tabs.'); }
+    L.push('');
+    L.push('Still owed on tabs: '+money(owed));
+    L.push('GRAND TOTAL (paid + owed): '+money((state.raised||0)+owed));
+    return L.join('\n');
+  }
+  function openExport(){
+    document.getElementById('exportArea').value=buildReport();
+    closeSheet('editScrim'); openSheet('exportScrim');
   }
 
   /* ---------- sheets ---------- */
@@ -424,6 +492,28 @@
   document.getElementById('addItem').addEventListener('click',function(){
     if(state.items.filter(function(i){return !i._temp;}).length>=10) return;
     state.items.push({id:uid(),name:'New item',price:100}); save(); renderEditRows(); renderGrid();
+  });
+  document.getElementById('exportBtn').addEventListener('click',openExport);
+  document.getElementById('expCopy').addEventListener('click',function(){
+    var txt=document.getElementById('exportArea').value;
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(function(){flash('Copied ✓');},fallbackCopy); }
+    else fallbackCopy();
+    function fallbackCopy(){ var a=document.getElementById('exportArea'); a.removeAttribute('readonly'); a.select(); try{document.execCommand('copy');flash('Copied ✓');}catch(e){flash('Select all + copy');} a.setAttribute('readonly','');}
+  });
+  document.getElementById('expShare').addEventListener('click',function(){
+    var txt=document.getElementById('exportArea').value;
+    if(navigator.share){ navigator.share({title:'Bake Sale totals',text:txt}).catch(function(){}); }
+    else flash('Sharing not supported here');
+  });
+  document.getElementById('expDl').addEventListener('click',function(){
+    var txt=document.getElementById('exportArea').value;
+    var blob=new Blob([txt],{type:'text/plain'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a'); a.href=url;
+    a.download='bake-sale-'+new Date().toISOString().slice(0,10)+'.txt';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);},1000);
+    flash('File saved');
   });
   document.getElementById('resetDay').addEventListener('click',function(){
     if(confirm('Reset the “raised today” total to $0?')){ state.raised=0; save(); renderRaised(); flash('Reset to $0'); }
