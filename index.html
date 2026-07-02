@@ -181,7 +181,7 @@
   <button class="sale-name" id="saleLabel" title="Switch or rename this sale">📅 Sale</button>
   <span class="sync off" id="syncPill">•••</span>
   <button class="sale-new" id="newSaleBtn">+ New sale</button>
-  <button class="sale-new" id="histBtn" title="Past sales" style="background:#efe6d4;padding:8px 10px">🕘</button>
+  <button class="sale-new" id="histBtn" title="Past sales" style="background:#efe6d4;padding:8px 10px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none">🕘</button>
 </div>
 
 <main>
@@ -244,8 +244,8 @@
 <!-- History sheet -->
 <div class="scrim" id="histScrim">
   <div class="sheet">
-    <h2>Past sales <button class="close" data-close>✕</button></h2>
-    <p class="hint" style="margin-top:0">Tap a sale to see its results. “Open” switches the register to that sale.</p>
+    <h2>Past sales <span id="histAdminTag" style="display:none;color:var(--red);font-size:13px;font-weight:800">admin</span> <button class="close" data-close>✕</button></h2>
+    <p class="hint" style="margin-top:0" id="histHint">Tap a sale to see its results. “Open” switches the register to that sale.</p>
     <div id="histList"></div>
   </div>
 </div>
@@ -619,7 +619,14 @@
     try{ return new Date(ms).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}); }
     catch(e){ return ''; }
   }
-  function openHistory(){
+  // admin=true (hidden long-press on 🕘) adds per-sale delete; the backend
+  // emails a full record to andrew@fochelc.com before it deletes anything
+  function openHistory(admin){
+    admin=admin===true;
+    document.getElementById('histAdminTag').style.display=admin?'inline':'none';
+    document.getElementById('histHint').textContent=admin
+      ? 'Admin: 🗑 deletes a sale from history. A record is emailed to '+'andrew@fochelc.com first.'
+      : 'Tap a sale to see its results. “Open” switches the register to that sale.';
     var box=document.getElementById('histList');
     box.innerHTML='<div class="notabs">Loading…</div>';
     openSheet('histScrim');
@@ -631,20 +638,52 @@
         box.innerHTML='';
         rows.forEach(function(r){
           var el=document.createElement('div'); el.className='tabitem';
-          var cur=(r.key===apiKey())?' • current':'';
+          var isCur=(r.key===apiKey());
           el.innerHTML='<div style="flex:1"><div class="ti-nm">'+esc(r.saleName||r.key)+'</div>'+
-            '<div class="ti-sub">'+fmtDay(r.savedAt)+(r.tabs?' • '+r.tabs+' tab'+(r.tabs===1?'':'s'):'')+cur+'</div></div>'+
+            '<div class="ti-sub">'+fmtDay(r.savedAt)+(r.tabs?' • '+r.tabs+' tab'+(r.tabs===1?'':'s'):'')+(isCur?' • current':'')+'</div></div>'+
             '<div class="ti-amt">'+money(r.raised||0)+'</div>';
-          if(!cur){
+          if(!isCur && !admin){
             var open=document.createElement('button'); open.className='ti-open'; open.textContent='Open';
             open.addEventListener('click',function(ev){ ev.stopPropagation(); openPastSale(r); });
             el.appendChild(open);
+          }
+          if(admin){
+            var del=document.createElement('button'); del.className='ti-del'; del.textContent='🗑';
+            del.addEventListener('click',function(ev){
+              ev.stopPropagation();
+              deletePastSale(r, el, del);
+            });
+            el.appendChild(del);
           }
           el.addEventListener('click',function(){ viewPastSale(r); });
           box.appendChild(el);
         });
       })
       .catch(function(){ box.innerHTML='<div class="notabs">Couldn’t load history — offline?</div>'; });
+  }
+  function deletePastSale(r, rowEl, delBtn){
+    var nm=r.saleName||r.key;
+    if(!confirm('Delete “'+nm+'” from history?\nA record will be emailed to andrew@fochelc.com first.')) return;
+    delBtn.disabled=true; delBtn.textContent='…';
+    fetch(API+encodeURIComponent(r.key),{method:'DELETE'})
+      .then(function(x){return x.json();})
+      .then(function(res){
+        if(res&&res.ok){
+          rowEl.remove();
+          flash(res.emailed?'Deleted — record emailed ✓':'Deleted');
+          if(r.key===apiKey()){
+            // the register was pointed at this sale — reset it locally too,
+            // otherwise the next sync would quietly re-create the blob
+            state.tabs=[]; state.raised=0; state.updatedAt=0; writeRaw();
+            order={}; editingTabId=null;
+            renderGrid(); renderTray(); renderTabBadge();
+          }
+        }else{
+          delBtn.disabled=false; delBtn.textContent='🗑';
+          flash((res&&res.error)||'Couldn’t delete');
+        }
+      })
+      .catch(function(){ delBtn.disabled=false; delBtn.textContent='🗑'; flash('Couldn’t delete — offline?'); });
   }
   function viewPastSale(r){
     fetch(API+encodeURIComponent(r.key))
@@ -808,7 +847,8 @@
   }
 
   /* ---------- sheets ---------- */
-  function openSheet(id){ document.getElementById(id).classList.add('on'); }
+  var sheetOpenedAt={};
+  function openSheet(id){ document.getElementById(id).classList.add('on'); sheetOpenedAt[id]=Date.now(); }
   function closeSheet(id){ document.getElementById(id).classList.remove('on'); }
 
   /* ---------- wire up ---------- */
@@ -823,7 +863,30 @@
   });
   document.getElementById('exportBtn').addEventListener('click',openExport);
   document.getElementById('shareBtn').addEventListener('click',openExport);
-  document.getElementById('histBtn').addEventListener('click',openHistory);
+  // 🕘 tap = history; hidden 600ms long-press = admin mode (delete sales)
+  (function(){
+    var b=document.getElementById('histBtn'), holdT=null, didHold=false, touching=false, holdOpenTs=0;
+    function startHold(){ didHold=false; clearTimeout(holdT); holdT=setTimeout(function(){ didHold=true; },600); }
+    function cancelHold(){ clearTimeout(holdT); didHold=false; }
+    function endHold(e){
+      clearTimeout(holdT);
+      if(didHold){
+        didHold=false; holdOpenTs=Date.now();
+        // block the synthetic click that would land on the new sheet's scrim
+        if(e&&e.cancelable) e.preventDefault();
+        openHistory(true);
+      }
+    }
+    b.addEventListener('touchstart',function(){ touching=true; startHold(); });
+    b.addEventListener('touchend',endHold);
+    b.addEventListener('touchmove',cancelHold);
+    b.addEventListener('touchcancel',cancelHold);
+    b.addEventListener('mousedown',function(){ if(!touching) startHold(); });
+    b.addEventListener('mouseup',function(e){ if(!touching) endHold(e); });
+    b.addEventListener('mouseleave',function(){ if(!touching) cancelHold(); });
+    b.addEventListener('contextmenu',function(e){ e.preventDefault(); });
+    b.addEventListener('click',function(){ if(Date.now()-holdOpenTs<700) return; openHistory(false); });
+  })();
   document.getElementById('savePresetBtn').addEventListener('click',savePreset);
   document.getElementById('loadPresetBtn').addEventListener('click',openPresets);
   document.getElementById('resetMenu').addEventListener('click',function(){
@@ -858,7 +921,11 @@
     b.addEventListener('click',function(){ b.closest('.scrim').classList.remove('on'); });
   });
   Array.prototype.forEach.call(document.querySelectorAll('.scrim'),function(s){
-    s.addEventListener('click',function(e){ if(e.target===s) s.classList.remove('on'); });
+    // the grace period swallows stray clicks that leak through right as a
+    // sheet opens (e.g. the tap-release after the 🕘 long-press)
+    s.addEventListener('click',function(e){
+      if(e.target===s && Date.now()-(sheetOpenedAt[s.id]||0)>450) s.classList.remove('on');
+    });
   });
 
   document.getElementById('newSaleBtn').addEventListener('click',newSale);
