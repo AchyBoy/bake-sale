@@ -866,15 +866,21 @@
   // 🕘 tap = history; hidden 600ms long-press = admin mode (delete sales)
   (function(){
     var b=document.getElementById('histBtn'), holdT=null, didHold=false, touching=false, holdOpenTs=0;
-    function startHold(){ didHold=false; clearTimeout(holdT); holdT=setTimeout(function(){ didHold=true; },600); }
-    function cancelHold(){ clearTimeout(holdT); didHold=false; }
+    // admin opens AT the 600ms mark, while the finger is still down (like a
+    // native long-press); the release is then defused below
+    function startHold(){
+      didHold=false; clearTimeout(holdT);
+      holdT=setTimeout(function(){ didHold=true; holdOpenTs=Date.now(); openHistory(true); },600);
+    }
+    function cancelHold(){ clearTimeout(holdT); if(didHold){ didHold=false; sheetOpenedAt.histScrim=Date.now(); } }
     function endHold(e){
       clearTimeout(holdT);
       if(didHold){
-        didHold=false; holdOpenTs=Date.now();
-        // block the synthetic click that would land on the new sheet's scrim
+        didHold=false;
+        // the release must not close the sheet it just opened: suppress the
+        // synthetic click, and re-arm the scrim grace period for what leaks
         if(e&&e.cancelable) e.preventDefault();
-        openHistory(true);
+        sheetOpenedAt.histScrim=Date.now();
       }
     }
     b.addEventListener('touchstart',function(){ touching=true; startHold(); });
