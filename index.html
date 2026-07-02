@@ -45,9 +45,9 @@
   }
   /* ---------- sale bar ---------- */
   .salebar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fff3e0;border-bottom:1px solid var(--line)}
-  .sale-name{background:#fff;border:2px solid var(--line);border-radius:10px;padding:7px 11px;font-weight:800;font-size:14px;color:var(--ink);cursor:pointer;flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sale-name{background:#fff;border:2px solid var(--line);border-radius:10px;padding:7px 11px;font-weight:800;font-size:14px;color:var(--ink);cursor:pointer;flex:1 1 96px;min-width:96px;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sale-new{background:var(--gold);border:none;border-radius:10px;padding:8px 11px;font-weight:800;font-size:13px;color:#3a2419;cursor:pointer;flex:0 0 auto}
-  .sync{font-size:11px;font-weight:800;padding:4px 8px;border-radius:20px;flex:0 0 auto;white-space:nowrap}
+  .sync{font-size:11px;font-weight:800;padding:4px 8px;border-radius:20px;flex:0 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .sync.ok{background:#e2f5e7;color:var(--green-dk)}
   .sync.busy{background:#fdf0d5;color:#8a6d1f}
   .sync.off{background:#f3e6e4;color:var(--red-dk)}
@@ -63,6 +63,7 @@
     user-select:none;
   }
   .item:active{transform:scale(.96)}
+  .item .stripe{position:absolute;left:0;top:12px;bottom:12px;width:6px;border-radius:0 4px 4px 0}
   .item .nm{font-weight:800;font-size:15px;line-height:1.15}
   .item .pr{font-weight:800;font-size:14px;color:var(--red)}
   .item .qty{
@@ -86,6 +87,7 @@
   .line:last-child{border-bottom:none}
   .line .lminus{background:#efe6d4;border:none;color:var(--ink);width:32px;height:32px;border-radius:9px;font-size:22px;font-weight:800;cursor:pointer;flex:0 0 auto;line-height:1;padding:0}
   .line .lminus:active{transform:scale(.9)}
+  .line .ldot{width:5px;height:18px;border-radius:3px;flex:0 0 auto}
   .line .lq{font-weight:800;color:var(--brown);min-width:28px;text-align:center}
   .line .ln{flex:1;font-weight:600}
   .line .lp{font-weight:700}
@@ -147,6 +149,7 @@
   .tabitem .ti-amt{font-weight:900;font-size:20px;color:var(--red)}
   .tabitem .ti-pay{background:var(--green);color:#fff;border:none;border-radius:10px;padding:9px 12px;font-weight:800;font-size:13px;cursor:pointer}
   .tabitem .ti-del{background:#f3e6e4;color:var(--red);border:none;border-radius:10px;padding:9px 11px;font-size:15px;cursor:pointer}
+  .tabitem .ti-open{background:var(--brown);color:#fff;border:none;border-radius:10px;padding:9px 12px;font-weight:800;font-size:13px;cursor:pointer}
   .tabitem.voided{opacity:.72;background:#f4eede;border-style:dashed}
   .tabitem .ti-restore{background:#e2f5e7;color:var(--green-dk);border:none;border-radius:10px;padding:9px 12px;font-weight:800;font-size:13px;cursor:pointer}
   .removed-hdr{margin:14px 0 8px;font-size:12px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
@@ -170,6 +173,7 @@
     <span class="raised" id="raised">Raised today: $0</span>
   </div>
   <button class="iconbtn tabbadge" id="tabsBtn" title="Open tabs">🧾<span class="dot" id="tabDot" style="display:none">0</span></button>
+  <button class="iconbtn" id="shareBtn" title="Share totals">📤</button>
   <button class="iconbtn" id="gearBtn" title="Edit menu">⚙️</button>
 </header>
 
@@ -177,6 +181,7 @@
   <button class="sale-name" id="saleLabel" title="Switch or rename this sale">📅 Sale</button>
   <span class="sync off" id="syncPill">•••</span>
   <button class="sale-new" id="newSaleBtn">+ New sale</button>
+  <button class="sale-new" id="histBtn" title="Past sales" style="background:#efe6d4;padding:8px 10px">🕘</button>
 </div>
 
 <main>
@@ -203,7 +208,12 @@
     <p class="hint">Prices can be whole dollars ($3) or cents ($2.50). Max 10 items. Changes don’t affect tabs already open.</p>
     <button class="bigsave" data-close>Done</button>
     <div style="text-align:center;margin-top:14px;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;gap:8px">
+        <button class="addbtn" id="savePresetBtn" style="margin-top:0">💾 Save as preset</button>
+        <button class="addbtn" id="loadPresetBtn" style="margin-top:0">📂 Presets</button>
+      </div>
       <button class="addbtn" id="exportBtn" style="border-color:var(--green);color:var(--green-dk)">⬇︎ Backup / export today’s totals</button>
+      <button class="dangerlink" id="resetMenu">Reset menu to default items</button>
       <button class="dangerlink" id="resetDay">Reset “raised today” to $0</button>
     </div>
   </div>
@@ -212,7 +222,7 @@
 <!-- Export sheet -->
 <div class="scrim" id="exportScrim">
   <div class="sheet">
-    <h2>Backup / export <button class="close" data-close>✕</button></h2>
+    <h2><span id="exportTitle">Backup / export</span> <button class="close" data-close>✕</button></h2>
     <p class="hint" style="margin-top:0">A snapshot of what you’ve raised and every open tab. Copy it, text it to yourself, or save the file.</p>
     <textarea class="exp-area" id="exportArea" readonly></textarea>
     <div class="exp-btns">
@@ -228,6 +238,24 @@
   <div class="sheet">
     <h2>Open tabs <button class="close" data-close>✕</button></h2>
     <div id="tabList"></div>
+  </div>
+</div>
+
+<!-- History sheet -->
+<div class="scrim" id="histScrim">
+  <div class="sheet">
+    <h2>Past sales <button class="close" data-close>✕</button></h2>
+    <p class="hint" style="margin-top:0">Tap a sale to see its results. “Open” switches the register to that sale.</p>
+    <div id="histList"></div>
+  </div>
+</div>
+
+<!-- Presets sheet -->
+<div class="scrim" id="presetScrim">
+  <div class="sheet">
+    <h2>Menu presets <button class="close" data-close>✕</button></h2>
+    <p class="hint" style="margin-top:0">Tap a preset to load that menu. Tabs and totals for this sale are kept.</p>
+    <div id="presetList"></div>
   </div>
 </div>
 
@@ -274,6 +302,13 @@
     return '$'+ (n%1===0 ? n.toFixed(0) : n.toFixed(2));
   }
   function itemById(id){ for(var i=0;i<state.items.length;i++) if(state.items[i].id===id) return state.items[i]; return null; }
+  // one stable color per menu slot — matching a stripe beats re-reading
+  // near-identical names ("Chili Dog" vs "Chili Cheese Dog")
+  var PALETTE=['#d84a3f','#e8842c','#d9a514','#3f9e58','#2ba3a0','#3b82c4','#8e5bbf','#d4589a','#a06a3c','#6b7d8f'];
+  function itemColor(id){
+    for(var i=0;i<state.items.length;i++) if(state.items[i].id===id) return PALETTE[i%PALETTE.length];
+    return '#cfc3b0';
+  }
   function uid(){ return 'x'+Math.abs((Date.now()^(Math.floor(performance.now()*1000)))).toString(36); }
 
   /* ---------- render item grid ---------- */
@@ -283,7 +318,8 @@
       var q=order[it.id]||0;
       var el=document.createElement('div');
       el.className='item'+(q?' hot':'');
-      el.innerHTML='<div class="nm">'+esc(it.name)+'</div><div class="pr">'+money(it.price)+'</div>'+
+      el.innerHTML='<div class="stripe" style="background:'+itemColor(it.id)+'"></div>'+
+                   '<div class="nm">'+esc(it.name)+'</div><div class="pr">'+money(it.price)+'</div>'+
                    (q?'<div class="qty">'+q+'</div>':'');
       el.addEventListener('click',function(){ addToOrder(it.id); });
       g.appendChild(el);
@@ -316,7 +352,8 @@
         minus.addEventListener('click',function(){decOrder(id);});
         row.appendChild(minus);
         var body=document.createElement('span'); body.style.cssText='display:flex;align-items:center;gap:8px;flex:1';
-        body.innerHTML='<span class="lq">'+q+'×</span><span class="ln">'+esc(it.name)+'</span>'+
+        body.innerHTML='<span class="ldot" style="background:'+itemColor(id)+'"></span>'+
+                       '<span class="lq">'+q+'×</span><span class="ln">'+esc(it.name)+'</span>'+
                        '<span class="lp" style="margin-left:auto">'+money(it.price*q)+'</span>';
         row.appendChild(body);
         var x=document.createElement('button'); x.className='lx'; x.textContent='✕';
@@ -539,13 +576,18 @@
   }
 
   /* ---------- backup / export ---------- */
-  function buildReport(){
-    var d=new Date(), L=[];
-    L.push('BAKE SALE — '+d.toLocaleString());
-    L.push('Raised (paid): '+money(state.raised||0));
+  // works on any sale-shaped {saleName, raised, tabs} so History can render
+  // past sales with the same report
+  function buildReportFor(s, when){
+    var L=[];
+    L.push('BAKE SALE — '+(s.saleName||'?'));
+    if(when) L.push(when);
+    L.push('Raised (paid): '+money(s.raised||0));
     L.push('');
     var owed=0;
-    var active=activeTabs(), voided=voidedTabs();
+    var tabs=Array.isArray(s.tabs)?s.tabs:[];
+    var active=tabs.filter(function(t){return !t.voided;});
+    var voided=tabs.filter(function(t){return t.voided;});
     if(active.length){
       L.push('OPEN TABS ('+active.length+'):');
       active.forEach(function(t){
@@ -556,7 +598,7 @@
     }else{ L.push('No open tabs.'); }
     L.push('');
     L.push('Still owed on tabs: '+money(owed));
-    L.push('GRAND TOTAL (paid + owed): '+money((state.raised||0)+owed));
+    L.push('GRAND TOTAL (paid + owed): '+money((s.raised||0)+owed));
     if(voided.length){
       L.push('');
       L.push('REMOVED — not counted ('+voided.length+'):');
@@ -564,9 +606,137 @@
     }
     return L.join('\n');
   }
+  function buildReport(){ return buildReportFor(state, new Date().toLocaleString()); }
   function openExport(){
+    document.getElementById('exportTitle').textContent='Backup / export';
     document.getElementById('exportArea').value=buildReport();
     closeSheet('editScrim'); openSheet('exportScrim');
+  }
+
+  /* ---------- history (past sales) ---------- */
+  function fmtDay(ms){
+    if(!ms) return '';
+    try{ return new Date(ms).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}); }
+    catch(e){ return ''; }
+  }
+  function openHistory(){
+    var box=document.getElementById('histList');
+    box.innerHTML='<div class="notabs">Loading…</div>';
+    openSheet('histScrim');
+    fetch(API)
+      .then(function(r){return r.json();})
+      .then(function(res){
+        var rows=((res&&res.rows)||[]).filter(function(r){return r.key.indexOf('preset.')!==0;});
+        if(!rows.length){ box.innerHTML='<div class="notabs">No sales saved yet.</div>'; return; }
+        box.innerHTML='';
+        rows.forEach(function(r){
+          var el=document.createElement('div'); el.className='tabitem';
+          var cur=(r.key===apiKey())?' • current':'';
+          el.innerHTML='<div style="flex:1"><div class="ti-nm">'+esc(r.saleName||r.key)+'</div>'+
+            '<div class="ti-sub">'+fmtDay(r.savedAt)+(r.tabs?' • '+r.tabs+' tab'+(r.tabs===1?'':'s'):'')+cur+'</div></div>'+
+            '<div class="ti-amt">'+money(r.raised||0)+'</div>';
+          if(!cur){
+            var open=document.createElement('button'); open.className='ti-open'; open.textContent='Open';
+            open.addEventListener('click',function(ev){ ev.stopPropagation(); openPastSale(r); });
+            el.appendChild(open);
+          }
+          el.addEventListener('click',function(){ viewPastSale(r); });
+          box.appendChild(el);
+        });
+      })
+      .catch(function(){ box.innerHTML='<div class="notabs">Couldn’t load history — offline?</div>'; });
+  }
+  function viewPastSale(r){
+    fetch(API+encodeURIComponent(r.key))
+      .then(function(x){return x.json();})
+      .then(function(res){
+        if(!res||!res.data){ flash('Couldn’t load that sale'); return; }
+        document.getElementById('exportTitle').textContent='Past sale';
+        document.getElementById('exportArea').value=buildReportFor(res.data, fmtDay(r.savedAt));
+        closeSheet('histScrim'); openSheet('exportScrim');
+      })
+      .catch(function(){ flash('Couldn’t load that sale'); });
+  }
+  function openPastSale(r){
+    var nm=r.saleName||r.key;
+    state.saleName=nm; state.updatedAt=0; order={}; editingTabId=null; writeRaw();
+    renderSaleBar(); renderGrid(); renderTray(); renderTabBadge();
+    closeSheet('histScrim');
+    pullCloud(function(){ flash('Opened: '+nm); });
+  }
+
+  /* ---------- menu presets ---------- */
+  function presetKey(nm){
+    var k=String(nm||'').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9._-]/g,'');
+    return 'preset.'+(k||'menu');
+  }
+  function savePreset(){
+    var nm=prompt('Name this menu preset (e.g. Room 12):');
+    if(nm===null) return;
+    nm=(nm||'').trim();
+    if(!nm){ flash('Give it a name'); return; }
+    var items=state.items.filter(function(i){return !i._temp;})
+      .map(function(i){return {name:i.name,price:i.price};});
+    fetch(API+encodeURIComponent(presetKey(nm)),{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({data:{presetName:nm,items:items},updatedAt:Date.now()})})
+      .then(function(r){return r.json();})
+      .then(function(){ flash('Preset saved: '+nm); })
+      .catch(function(){ flash('Couldn’t save — offline?'); });
+  }
+  function applyMenu(items,label){
+    if(orderCount() && !confirm('Loading a menu clears the current unsaved order. Continue?')) return;
+    state.items=items.slice(0,10).map(function(it,i){
+      return {id:uid()+i, name:String(it.name||'Item'), price:Math.max(0,Math.round(Number(it.price)||0))};
+    });
+    order={}; editingTabId=null;
+    save(); closeSheet('presetScrim'); closeSheet('editScrim');
+    renderGrid(); renderTray(); flash('Menu: '+label);
+  }
+  function openPresets(){
+    var box=document.getElementById('presetList');
+    box.innerHTML='';
+    var def=document.createElement('div'); def.className='tabitem';
+    def.innerHTML='<div style="flex:1"><div class="ti-nm">Default menu</div>'+
+      '<div class="ti-sub">'+DEFAULTS.length+' items • the usual lineup</div></div>';
+    def.addEventListener('click',function(){
+      applyMenu(DEFAULTS.map(function(d){return {name:d.name,price:d.price};}),'Default menu');
+    });
+    box.appendChild(def);
+    var loading=document.createElement('div'); loading.className='notabs'; loading.textContent='Loading saved presets…';
+    box.appendChild(loading);
+    closeSheet('editScrim'); openSheet('presetScrim');
+    fetch(API)
+      .then(function(r){return r.json();})
+      .then(function(res){
+        loading.remove();
+        var rows=((res&&res.rows)||[]).filter(function(r){return r.key.indexOf('preset.')===0;});
+        rows.forEach(function(r){
+          var el=document.createElement('div'); el.className='tabitem';
+          el.innerHTML='<div style="flex:1"><div class="ti-nm">'+esc(r.presetName||r.key.slice(7))+'</div>'+
+            '<div class="ti-sub">'+r.items+' item'+(r.items===1?'':'s')+'</div></div>';
+          var del=document.createElement('button'); del.className='ti-del'; del.textContent='🗑';
+          del.addEventListener('click',function(ev){
+            ev.stopPropagation();
+            if(!confirm('Delete preset “'+(r.presetName||r.key)+'”?')) return;
+            fetch(API+encodeURIComponent(r.key),{method:'DELETE'})
+              .then(function(){ el.remove(); flash('Preset deleted'); })
+              .catch(function(){ flash('Couldn’t delete'); });
+          });
+          el.appendChild(del);
+          el.addEventListener('click',function(){
+            fetch(API+encodeURIComponent(r.key))
+              .then(function(x){return x.json();})
+              .then(function(res2){
+                var its=res2&&res2.data&&res2.data.items;
+                if(!its||!its.length){ flash('Preset is empty'); return; }
+                applyMenu(its, r.presetName||'Preset');
+              })
+              .catch(function(){ flash('Couldn’t load preset'); });
+          });
+          box.appendChild(el);
+        });
+      })
+      .catch(function(){ loading.textContent='Couldn’t load saved presets — offline?'; });
   }
 
   /* ---------- cloud sync (Railway backup, last-write-wins) ---------- */
@@ -652,6 +822,14 @@
     state.items.push({id:uid(),name:'New item',price:100}); save(); renderEditRows(); renderGrid();
   });
   document.getElementById('exportBtn').addEventListener('click',openExport);
+  document.getElementById('shareBtn').addEventListener('click',openExport);
+  document.getElementById('histBtn').addEventListener('click',openHistory);
+  document.getElementById('savePresetBtn').addEventListener('click',savePreset);
+  document.getElementById('loadPresetBtn').addEventListener('click',openPresets);
+  document.getElementById('resetMenu').addEventListener('click',function(){
+    if(confirm('Reset the menu to the default items? Tabs and totals are kept.'))
+      applyMenu(DEFAULTS.map(function(d){return {name:d.name,price:d.price};}),'Default menu');
+  });
   document.getElementById('expCopy').addEventListener('click',function(){
     var txt=document.getElementById('exportArea').value;
     if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(function(){flash('Copied ✓');},fallbackCopy); }
