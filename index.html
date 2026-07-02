@@ -43,6 +43,14 @@
     min-width:20px;height:20px;border-radius:10px;font-size:12px;font-weight:800;
     display:flex;align-items:center;justify-content:center;padding:0 5px;
   }
+  /* ---------- sale bar ---------- */
+  .salebar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fff3e0;border-bottom:1px solid var(--line)}
+  .sale-name{background:#fff;border:2px solid var(--line);border-radius:10px;padding:7px 11px;font-weight:800;font-size:14px;color:var(--ink);cursor:pointer;flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sale-new{background:var(--gold);border:none;border-radius:10px;padding:8px 11px;font-weight:800;font-size:13px;color:#3a2419;cursor:pointer;flex:0 0 auto}
+  .sync{font-size:11px;font-weight:800;padding:4px 8px;border-radius:20px;flex:0 0 auto;white-space:nowrap}
+  .sync.ok{background:#e2f5e7;color:var(--green-dk)}
+  .sync.busy{background:#fdf0d5;color:#8a6d1f}
+  .sync.off{background:#f3e6e4;color:var(--red-dk)}
   /* ---------- item grid ---------- */
   main{flex:1;padding:12px 12px 4px;overflow:auto;-webkit-overflow-scrolling:touch}
   .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
@@ -158,6 +166,12 @@
   <button class="iconbtn" id="gearBtn" title="Edit menu">⚙️</button>
 </header>
 
+<div class="salebar">
+  <button class="sale-name" id="saleLabel" title="Switch or rename this sale">📅 Sale</button>
+  <span class="sync off" id="syncPill">•••</span>
+  <button class="sale-new" id="newSaleBtn">+ New sale</button>
+</div>
+
 <main>
   <div class="grid" id="grid"></div>
 </main>
@@ -216,6 +230,7 @@
 (function(){
   "use strict";
   var LS='bakesale.v1';
+  var API='https://api.jobhubgo.com/api/bakesale/';
   var DEFAULTS=[
     {name:"Nacho Chili & Cheese",price:400},
     {name:"Nacho w/ Cheese",price:300},
@@ -233,15 +248,20 @@
   var order={};          // {itemId: qty}
   var editingTabId=null; // if set, "Paid"/"Start Tab" updates this tab
 
+  function todayName(){
+    try{ return new Date().toLocaleDateString(undefined,{month:'long',day:'numeric',year:'numeric'}); }
+    catch(e){ return 'Bake Sale'; }
+  }
   function load(){
     try{
       var s=JSON.parse(localStorage.getItem(LS));
-      if(s&&s.items) return s;
+      if(s&&s.items){ if(!s.saleName) s.saleName=todayName(); if(!s.updatedAt) s.updatedAt=0; return s; }
     }catch(e){}
     return {items:DEFAULTS.map(function(d,i){return {id:'i'+i,name:d.name,price:d.price};}),
-            tabs:[], raised:0};
+            tabs:[], raised:0, saleName:todayName(), updatedAt:0};
   }
-  function save(){ localStorage.setItem(LS,JSON.stringify(state)); }
+  function writeRaw(){ try{ localStorage.setItem(LS,JSON.stringify(state)); }catch(e){} }
+  function save(){ state.updatedAt=Date.now(); writeRaw(); schedulePush(); }
   function money(c){
     var n=(c/100);
     return '$'+ (n%1===0 ? n.toFixed(0) : n.toFixed(2));
@@ -479,6 +499,74 @@
     closeSheet('editScrim'); openSheet('exportScrim');
   }
 
+  /* ---------- cloud sync (Railway backup, last-write-wins) ---------- */
+  function apiKey(){
+    var k=String(state.saleName||'sale').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9._-]/g,'');
+    return encodeURIComponent(k||'sale');
+  }
+  function setSync(txt,cls){ var p=document.getElementById('syncPill'); p.textContent=txt; p.className='sync '+cls; }
+  function renderSaleBar(){ document.getElementById('saleLabel').textContent='📅 '+(state.saleName||'Sale'); }
+
+  var pushT;
+  function schedulePush(){ clearTimeout(pushT); pushT=setTimeout(pushCloud,800); }
+  function pushCloud(){
+    if(!navigator.onLine){ setSync('offline — saved on phone','off'); return; }
+    setSync('saving…','busy');
+    var payload={items:state.items.filter(function(i){return !i._temp;}),tabs:state.tabs,raised:state.raised,saleName:state.saleName,updatedAt:state.updatedAt};
+    fetch(API+apiKey(),{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({data:payload,updatedAt:state.updatedAt})})
+      .then(function(r){return r.json();})
+      .then(function(res){
+        if(res&&res.stale&&res.data&&(res.updatedAt||0)>(state.updatedAt||0)&&orderCount()===0){
+          adoptCloud(res.data,res.updatedAt); setSync('synced','ok');
+        } else { setSync('backed up ✓','ok'); }
+      })
+      .catch(function(){ setSync('offline — saved on phone','off'); });
+  }
+  function pullCloud(done){
+    if(!navigator.onLine){ setSync('offline','off'); if(done)done(); return; }
+    setSync('checking…','busy');
+    fetch(API+apiKey())
+      .then(function(r){return r.json();})
+      .then(function(res){
+        if(res&&res.data&&(res.updatedAt||0)>(state.updatedAt||0)){
+          adoptCloud(res.data,res.updatedAt); setSync('restored ✓','ok');
+        } else { setSync('backed up ✓','ok'); pushCloud(); }
+        if(done)done();
+      })
+      .catch(function(){ setSync('offline — saved on phone','off'); if(done)done(); });
+  }
+  function adoptCloud(data,updatedAt){
+    if(Array.isArray(data.items)&&data.items.length) state.items=data.items;
+    state.tabs=Array.isArray(data.tabs)?data.tabs:[];
+    state.raised=data.raised||0;
+    if(data.saleName) state.saleName=data.saleName;
+    state.updatedAt=updatedAt||Date.now();
+    order={}; editingTabId=null;
+    writeRaw();
+    renderGrid(); renderTray(); renderTabBadge(); renderSaleBar();
+  }
+
+  function switchSale(){
+    var nm=prompt("Switch to / rename sale.\nType an existing sale name to reopen it, or a new one:", state.saleName||todayName());
+    if(nm===null) return;
+    nm=(nm||'').trim()||todayName();
+    state.saleName=nm; state.updatedAt=0; order={}; editingTabId=null; writeRaw();
+    renderSaleBar(); renderGrid(); renderTray(); renderTabBadge();
+    pullCloud();
+  }
+  function newSale(){
+    var nm=prompt("Name this new bake sale:", todayName());
+    if(nm===null) return;
+    nm=(nm||'').trim()||todayName();
+    // keep the menu, start tabs + raised fresh; updatedAt 0 so an existing
+    // cloud sale of this name wins (reopens it) instead of getting wiped.
+    state={items:state.items.filter(function(i){return !i._temp;}),tabs:[],raised:0,saleName:nm,updatedAt:0};
+    order={}; editingTabId=null; writeRaw();
+    renderSaleBar(); renderGrid(); renderTray(); renderTabBadge();
+    pullCloud(function(){ flash('Started: '+nm); });
+  }
+
   /* ---------- sheets ---------- */
   function openSheet(id){ document.getElementById(id).classList.add('on'); }
   function closeSheet(id){ document.getElementById(id).classList.remove('on'); }
@@ -525,7 +613,13 @@
     s.addEventListener('click',function(e){ if(e.target===s) s.classList.remove('on'); });
   });
 
-  renderGrid(); renderTray(); renderTabBadge();
+  document.getElementById('newSaleBtn').addEventListener('click',newSale);
+  document.getElementById('saleLabel').addEventListener('click',switchSale);
+  window.addEventListener('online',function(){ schedulePush(); });
+  window.addEventListener('offline',function(){ setSync('offline — saved on phone','off'); });
+
+  renderSaleBar(); renderGrid(); renderTray(); renderTabBadge();
+  pullCloud();
 })();
 </script>
 </body>
