@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#b5342b" />
+<title>Bake Sale Register</title>
+<style>
+  :root{
+    --cream:#fbf3e4; --card:#fffaf0; --ink:#3a2419; --muted:#9a7f68;
+    --red:#b5342b; --red-dk:#8f271f; --green:#2f8f4e; --green-dk:#256e3d;
+    --brown:#a06a3c; --line:#eaddc6; --gold:#e0a52e;
+    --shadow:0 2px 0 rgba(0,0,0,.08),0 8px 22px rgba(120,70,30,.14);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--cream); color:var(--ink);
+    display:flex;flex-direction:column;min-height:100vh;
+    overscroll-behavior:none;
+  }
+  /* ---------- header ---------- */
+  header{
+    position:sticky;top:0;z-index:20;
+    background:var(--red);color:#fff;
+    padding:calc(env(safe-area-inset-top) + 10px) 14px 10px;
+    box-shadow:0 3px 12px rgba(0,0,0,.18);
+    display:flex;align-items:center;gap:10px;
+  }
+  header h1{font-size:19px;margin:0;font-weight:800;letter-spacing:.3px;flex:1;line-height:1.1}
+  header .raised{font-size:12px;font-weight:700;opacity:.9;display:block;margin-top:2px}
+  .iconbtn{
+    background:rgba(255,255,255,.16);border:none;color:#fff;
+    width:42px;height:42px;border-radius:12px;font-size:20px;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  .iconbtn:active{transform:scale(.94)}
+  .tabbadge{position:relative}
+  .tabbadge .dot{
+    position:absolute;top:-4px;right:-4px;background:var(--gold);color:#3a2419;
+    min-width:20px;height:20px;border-radius:10px;font-size:12px;font-weight:800;
+    display:flex;align-items:center;justify-content:center;padding:0 5px;
+  }
+  /* ---------- item grid ---------- */
+  main{flex:1;padding:12px 12px 4px;overflow:auto;-webkit-overflow-scrolling:touch}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  @media(min-width:520px){.grid{grid-template-columns:repeat(3,1fr)}}
+  .item{
+    background:var(--card);border:2px solid var(--line);border-radius:16px;
+    padding:14px 10px;min-height:92px;cursor:pointer;text-align:center;
+    display:flex;flex-direction:column;justify-content:center;gap:6px;
+    box-shadow:var(--shadow);position:relative;transition:transform .05s;
+    user-select:none;
+  }
+  .item:active{transform:scale(.96)}
+  .item .nm{font-weight:800;font-size:15px;line-height:1.15}
+  .item .pr{font-weight:800;font-size:14px;color:var(--red)}
+  .item .qty{
+    position:absolute;top:-9px;right:-9px;background:var(--green);color:#fff;
+    min-width:28px;height:28px;border-radius:14px;font-size:15px;font-weight:800;
+    display:flex;align-items:center;justify-content:center;padding:0 6px;
+    box-shadow:0 3px 8px rgba(0,0,0,.25);
+  }
+  .item.hot{border-color:var(--green);background:#f2fbf3}
+  /* ---------- current order tray ---------- */
+  .tray{
+    position:sticky;bottom:0;z-index:15;background:var(--card);
+    border-top:2px solid var(--line);box-shadow:0 -6px 20px rgba(120,70,30,.14);
+    padding:10px 12px calc(env(safe-area-inset-bottom) + 10px);
+  }
+  .lines{max-height:26vh;overflow:auto;margin:0 0 8px}
+  .line{
+    display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line);
+    font-size:15px;
+  }
+  .line:last-child{border-bottom:none}
+  .line .lq{font-weight:800;color:var(--brown);min-width:30px}
+  .line .ln{flex:1;font-weight:600}
+  .line .lp{font-weight:700}
+  .line .lx{background:none;border:none;color:var(--muted);font-size:20px;padding:0 2px;cursor:pointer}
+  .emptytray{color:var(--muted);text-align:center;padding:10px 0;font-size:15px}
+  .totalrow{display:flex;align-items:baseline;justify-content:space-between;margin:2px 0 10px}
+  .totalrow .lbl{font-weight:700;color:var(--muted);font-size:14px}
+  .totalrow .amt{font-weight:900;font-size:34px;letter-spacing:.5px}
+  .tabname{
+    font-size:13px;font-weight:800;color:var(--brown);margin:-4px 0 8px;
+    background:#fff3dc;border:1px dashed var(--gold);border-radius:8px;padding:5px 8px;
+    display:none;
+  }
+  .actions{display:flex;gap:8px}
+  .btn{
+    flex:1;border:none;border-radius:14px;padding:15px 8px;font-size:16px;font-weight:800;
+    cursor:pointer;color:#fff;box-shadow:var(--shadow);
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn.paid{background:var(--green);border-bottom:3px solid var(--green-dk)}
+  .btn.tab{background:var(--brown);border-bottom:3px solid #7a4e29}
+  .btn.clear{background:#efe6d4;color:var(--muted);box-shadow:none;flex:0 0 54px;font-size:22px}
+  .btn:disabled{opacity:.4;pointer-events:none}
+  /* ---------- modal / sheet ---------- */
+  .scrim{
+    position:fixed;inset:0;background:rgba(40,22,12,.5);z-index:40;
+    display:none;align-items:flex-end;justify-content:center;
+  }
+  .scrim.on{display:flex}
+  .sheet{
+    background:var(--cream);width:100%;max-width:560px;
+    border-radius:20px 20px 0 0;max-height:88vh;overflow:auto;
+    padding:16px 16px calc(env(safe-area-inset-bottom) + 20px);
+    box-shadow:0 -10px 40px rgba(0,0,0,.35);
+  }
+  .sheet h2{margin:2px 0 12px;font-size:20px;display:flex;align-items:center;gap:8px}
+  .sheet h2 .close{margin-left:auto;background:#efe6d4;border:none;width:34px;height:34px;border-radius:10px;font-size:18px;cursor:pointer}
+  .edit-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .edit-row input{
+    font-size:16px;padding:11px 10px;border:2px solid var(--line);border-radius:11px;
+    background:#fff;color:var(--ink);font-weight:600;min-width:0;
+  }
+  .edit-row .e-nm{flex:1}
+  .edit-row .e-pr{width:88px}
+  .edit-row .e-del{background:#fbe4e1;border:none;color:var(--red);width:42px;height:42px;border-radius:11px;font-size:18px;cursor:pointer;flex:0 0 auto}
+  .addbtn{width:100%;padding:13px;border:2px dashed var(--brown);background:transparent;color:var(--brown);font-weight:800;border-radius:13px;font-size:15px;cursor:pointer;margin-top:4px}
+  .addbtn:disabled{opacity:.4}
+  .hint{color:var(--muted);font-size:13px;margin:10px 0 4px}
+  .bigsave{width:100%;margin-top:14px;background:var(--red);color:#fff;border:none;border-radius:14px;padding:15px;font-size:17px;font-weight:800;cursor:pointer}
+  /* tabs list */
+  .tabitem{
+    background:var(--card);border:2px solid var(--line);border-radius:14px;
+    padding:12px 14px;margin-bottom:9px;display:flex;align-items:center;gap:10px;
+    box-shadow:var(--shadow);cursor:pointer;
+  }
+  .tabitem .ti-nm{flex:1;font-weight:800;font-size:16px}
+  .tabitem .ti-sub{color:var(--muted);font-size:12px;font-weight:600}
+  .tabitem .ti-amt{font-weight:900;font-size:20px;color:var(--red)}
+  .tabitem .ti-pay{background:var(--green);color:#fff;border:none;border-radius:10px;padding:9px 12px;font-weight:800;font-size:13px;cursor:pointer}
+  .notabs{color:var(--muted);text-align:center;padding:24px 0;font-size:15px}
+  .subtle{color:var(--muted);font-size:13px}
+  .dangerlink{background:none;border:none;color:var(--red);font-weight:700;font-size:14px;text-decoration:underline;cursor:pointer;padding:6px 0}
+  .flash{position:fixed;left:50%;top:70px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:12px;font-weight:800;z-index:60;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none}
+  .flash.on{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<header>
+  <div style="flex:1">
+    <h1>Bake Sale</h1>
+    <span class="raised" id="raised">Raised today: $0</span>
+  </div>
+  <button class="iconbtn tabbadge" id="tabsBtn" title="Open tabs">🧾<span class="dot" id="tabDot" style="display:none">0</span></button>
+  <button class="iconbtn" id="gearBtn" title="Edit menu">⚙️</button>
+</header>
+
+<main>
+  <div class="grid" id="grid"></div>
+</main>
+
+<div class="tray">
+  <div class="tabname" id="tabName"></div>
+  <div class="lines" id="lines"><div class="emptytray">Tap items above to ring them up</div></div>
+  <div class="totalrow"><span class="lbl" id="totLbl">Total</span><span class="amt" id="total">$0</span></div>
+  <div class="actions">
+    <button class="btn clear" id="clearBtn" title="Clear">✕</button>
+    <button class="btn tab" id="tabBtn">Start Tab</button>
+    <button class="btn paid" id="paidBtn">Paid ✓</button>
+  </div>
+</div>
+
+<!-- Settings sheet -->
+<div class="scrim" id="editScrim">
+  <div class="sheet">
+    <h2>Edit menu <button class="close" data-close>✕</button></h2>
+    <div id="editRows"></div>
+    <button class="addbtn" id="addItem">+ Add item</button>
+    <p class="hint">Prices can be whole dollars ($3) or cents ($2.50). Max 10 items. Changes don’t affect tabs already open.</p>
+    <button class="bigsave" data-close>Done</button>
+    <div style="text-align:center;margin-top:14px">
+      <button class="dangerlink" id="resetDay">Reset “raised today” to $0</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tabs sheet -->
+<div class="scrim" id="tabsScrim">
+  <div class="sheet">
+    <h2>Open tabs <button class="close" data-close>✕</button></h2>
+    <div id="tabList"></div>
+  </div>
+</div>
+
+<div class="flash" id="flash"></div>
+
+<script>
+(function(){
+  "use strict";
+  var LS='bakesale.v1';
+  var DEFAULTS=[
+    {name:"Nacho Chili & Cheese",price:400},
+    {name:"Nacho w/ Cheese",price:300},
+    {name:"Chili Cheese Dog",price:300},
+    {name:"Chili Dog",price:300},
+    {name:"Frito Pie w/ Cheese",price:300},
+    {name:"Frito Pie Chili & Cheese",price:300},
+    {name:"Cake",price:200},
+    {name:"Cookie",price:100},
+    {name:"Drink",price:200}
+  ];
+  var state=load();
+  // current order = map of itemIndex -> qty  (kept as array parallel to items),
+  // plus editingTabId when settling an existing tab.
+  var order={};          // {itemId: qty}
+  var editingTabId=null; // if set, "Paid"/"Start Tab" updates this tab
+
+  function load(){
+    try{
+      var s=JSON.parse(localStorage.getItem(LS));
+      if(s&&s.items) return s;
+    }catch(e){}
+    return {items:DEFAULTS.map(function(d,i){return {id:'i'+i,name:d.name,price:d.price};}),
+            tabs:[], raised:0};
+  }
+  function save(){ localStorage.setItem(LS,JSON.stringify(state)); }
+  function money(c){
+    var n=(c/100);
+    return '$'+ (n%1===0 ? n.toFixed(0) : n.toFixed(2));
+  }
+  function itemById(id){ for(var i=0;i<state.items.length;i++) if(state.items[i].id===id) return state.items[i]; return null; }
+  function uid(){ return 'x'+Math.abs((Date.now()^(Math.floor(performance.now()*1000)))).toString(36); }
+
+  /* ---------- render item grid ---------- */
+  function renderGrid(){
+    var g=document.getElementById('grid'); g.innerHTML='';
+    state.items.forEach(function(it){
+      var q=order[it.id]||0;
+      var el=document.createElement('div');
+      el.className='item'+(q?' hot':'');
+      el.innerHTML='<div class="nm">'+esc(it.name)+'</div><div class="pr">'+money(it.price)+'</div>'+
+                   (q?'<div class="qty">'+q+'</div>':'');
+      el.addEventListener('click',function(){ addToOrder(it.id); });
+      g.appendChild(el);
+    });
+  }
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+  function addToOrder(id){ order[id]=(order[id]||0)+1; renderGrid(); renderTray(); }
+  function removeLine(id){ delete order[id]; renderGrid(); renderTray(); }
+
+  function orderTotal(){
+    var t=0; for(var id in order){ var it=itemById(id); if(it) t+=it.price*order[id]; } return t;
+  }
+  function orderCount(){ var n=0; for(var id in order) n+=order[id]; return n; }
+
+  /* ---------- render tray ---------- */
+  function renderTray(){
+    var lines=document.getElementById('lines');
+    var ids=Object.keys(order);
+    if(!ids.length){
+      lines.innerHTML='<div class="emptytray">Tap items above to ring them up</div>';
+    }else{
+      lines.innerHTML='';
+      ids.forEach(function(id){
+        var it=itemById(id); if(!it) return;
+        var q=order[id];
+        var row=document.createElement('div'); row.className='line';
+        row.innerHTML='<span class="lq">'+q+'×</span><span class="ln">'+esc(it.name)+'</span>'+
+                      '<span class="lp">'+money(it.price*q)+'</span>';
+        var x=document.createElement('button'); x.className='lx'; x.textContent='✕';
+        x.addEventListener('click',function(){removeLine(id);});
+        row.appendChild(x);
+        lines.appendChild(row);
+      });
+    }
+    document.getElementById('total').textContent=money(orderTotal());
+    var has=ids.length>0;
+    document.getElementById('paidBtn').disabled=!has;
+    document.getElementById('clearBtn').disabled=!has;
+    var tabBtn=document.getElementById('tabBtn');
+    var nameBox=document.getElementById('tabName');
+    if(editingTabId){
+      var t=tabById(editingTabId);
+      nameBox.style.display='block';
+      nameBox.textContent='Tab: '+(t?t.name:'');
+      tabBtn.textContent='Update Tab';
+      tabBtn.disabled=!has;
+      document.getElementById('totLbl').textContent='Tab total';
+    }else{
+      nameBox.style.display='none';
+      tabBtn.textContent='Start Tab';
+      tabBtn.disabled=!has;
+      document.getElementById('totLbl').textContent='Total';
+    }
+    renderRaised(); renderTabBadge();
+  }
+  function renderRaised(){ document.getElementById('raised').textContent='Raised today: '+money(state.raised||0); }
+
+  /* ---------- tabs ---------- */
+  function tabById(id){ for(var i=0;i<state.tabs.length;i++) if(state.tabs[i].id===id) return state.tabs[i]; return null; }
+  function orderSnapshot(){
+    var arr=[]; for(var id in order){ var it=itemById(id); if(it) arr.push({name:it.name,price:it.price,qty:order[id]}); } return arr;
+  }
+  function snapshotTotal(lines){ var t=0; lines.forEach(function(l){t+=l.price*l.qty;}); return t; }
+
+  function clearOrder(){ order={}; editingTabId=null; renderGrid(); renderTray(); }
+
+  function markPaid(){
+    if(!orderCount()) return;
+    var amt=orderTotal();
+    state.raised=(state.raised||0)+amt;
+    if(editingTabId){ state.tabs=state.tabs.filter(function(t){return t.id!==editingTabId;}); }
+    save(); clearOrder();
+    flash('Paid '+money(amt)+' ✓');
+  }
+
+  function startOrUpdateTab(){
+    if(!orderCount()) return;
+    if(editingTabId){
+      var t=tabById(editingTabId);
+      if(t){ t.lines=orderSnapshot(); save(); }
+      flash('Tab updated'); clearOrder(); return;
+    }
+    var nm=prompt("Name for this tab? (e.g. red shirt, Miss Amy)");
+    if(nm===null) return;
+    nm=(nm||'').trim()||('Tab '+(state.tabs.length+1));
+    state.tabs.push({id:uid(),name:nm,lines:orderSnapshot(),ts:Date.now()});
+    save(); clearOrder();
+    flash('Tab saved: '+nm);
+    renderTabBadge();
+  }
+
+  function renderTabBadge(){
+    var dot=document.getElementById('tabDot');
+    if(state.tabs.length){ dot.style.display='flex'; dot.textContent=state.tabs.length; }
+    else dot.style.display='none';
+  }
+
+  function openTabIntoOrder(id){
+    var t=tabById(id); if(!t) return;
+    order={}; editingTabId=id;
+    // rebuild order from snapshot, matching by current items when possible, else keep as ad-hoc
+    t.lines.forEach(function(l){
+      var match=null;
+      for(var i=0;i<state.items.length;i++){ if(state.items[i].name===l.name && state.items[i].price===l.price){match=state.items[i];break;} }
+      if(match){ order[match.id]=(order[match.id]||0)+l.qty; }
+      else { // item was edited/removed: recreate a temporary item so it still tallies
+        var tmp={id:uid(),name:l.name,price:l.price,_temp:true};
+        state.items.push(tmp); order[tmp.id]=l.qty;
+      }
+    });
+    closeSheet('tabsScrim'); renderGrid(); renderTray();
+    window.scrollTo(0,document.body.scrollHeight);
+  }
+
+  function renderTabList(){
+    var box=document.getElementById('tabList');
+    if(!state.tabs.length){ box.innerHTML='<div class="notabs">No open tabs.<br><span class="subtle">Ring up an order and hit “Start Tab”.</span></div>'; return; }
+    box.innerHTML='';
+    // newest first
+    state.tabs.slice().sort(function(a,b){return b.ts-a.ts;}).forEach(function(t){
+      var el=document.createElement('div'); el.className='tabitem';
+      var n=0; t.lines.forEach(function(l){n+=l.qty;});
+      el.innerHTML='<div style="flex:1"><div class="ti-nm">'+esc(t.name)+'</div>'+
+                   '<div class="ti-sub">'+n+' item'+(n===1?'':'s')+' • tap to edit</div></div>'+
+                   '<div class="ti-amt">'+money(snapshotTotal(t.lines))+'</div>';
+      var pay=document.createElement('button'); pay.className='ti-pay'; pay.textContent='Paid';
+      pay.addEventListener('click',function(ev){
+        ev.stopPropagation();
+        state.raised=(state.raised||0)+snapshotTotal(t.lines);
+        state.tabs=state.tabs.filter(function(x){return x.id!==t.id;});
+        save(); renderTabList(); renderTabBadge(); renderRaised();
+        flash('Tab settled ✓');
+        if(!state.tabs.length) closeSheet('tabsScrim');
+      });
+      el.appendChild(pay);
+      el.addEventListener('click',function(){ openTabIntoOrder(t.id); });
+      box.appendChild(el);
+    });
+  }
+
+  /* ---------- edit menu ---------- */
+  function renderEditRows(){
+    var box=document.getElementById('editRows'); box.innerHTML='';
+    state.items.filter(function(it){return !it._temp;}).forEach(function(it){
+      var row=document.createElement('div'); row.className='edit-row';
+      var nm=document.createElement('input'); nm.className='e-nm'; nm.value=it.name; nm.placeholder='Item name';
+      nm.addEventListener('input',function(){ it.name=nm.value; save(); renderGrid(); });
+      var pr=document.createElement('input'); pr.className='e-pr'; pr.type='text'; pr.inputMode='decimal';
+      pr.value=(it.price/100)%1===0?(it.price/100).toFixed(0):(it.price/100).toFixed(2);
+      pr.addEventListener('input',function(){
+        var v=parseFloat(pr.value.replace(/[^0-9.]/g,''));
+        it.price=isNaN(v)?0:Math.round(v*100); save(); renderGrid(); renderTray();
+      });
+      pr.addEventListener('blur',function(){
+        pr.value=(it.price/100)%1===0?(it.price/100).toFixed(0):(it.price/100).toFixed(2);
+      });
+      var del=document.createElement('button'); del.className='e-del'; del.textContent='🗑';
+      del.addEventListener('click',function(){
+        state.items=state.items.filter(function(x){return x.id!==it.id;});
+        delete order[it.id]; save(); renderEditRows(); renderGrid(); renderTray();
+      });
+      row.appendChild(nm); row.appendChild(pr); row.appendChild(del);
+      box.appendChild(row);
+    });
+    document.getElementById('addItem').disabled = state.items.filter(function(i){return !i._temp;}).length>=10;
+  }
+
+  /* ---------- flash ---------- */
+  var flashT;
+  function flash(msg){
+    var f=document.getElementById('flash'); f.textContent=msg; f.classList.add('on');
+    clearTimeout(flashT); flashT=setTimeout(function(){f.classList.remove('on');},1400);
+  }
+
+  /* ---------- sheets ---------- */
+  function openSheet(id){ document.getElementById(id).classList.add('on'); }
+  function closeSheet(id){ document.getElementById(id).classList.remove('on'); }
+
+  /* ---------- wire up ---------- */
+  document.getElementById('paidBtn').addEventListener('click',markPaid);
+  document.getElementById('tabBtn').addEventListener('click',startOrUpdateTab);
+  document.getElementById('clearBtn').addEventListener('click',function(){ if(orderCount()) clearOrder(); });
+  document.getElementById('gearBtn').addEventListener('click',function(){ renderEditRows(); openSheet('editScrim'); });
+  document.getElementById('tabsBtn').addEventListener('click',function(){ renderTabList(); openSheet('tabsScrim'); });
+  document.getElementById('addItem').addEventListener('click',function(){
+    if(state.items.filter(function(i){return !i._temp;}).length>=10) return;
+    state.items.push({id:uid(),name:'New item',price:100}); save(); renderEditRows(); renderGrid();
+  });
+  document.getElementById('resetDay').addEventListener('click',function(){
+    if(confirm('Reset the “raised today” total to $0?')){ state.raised=0; save(); renderRaised(); flash('Reset to $0'); }
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-close]'),function(b){
+    b.addEventListener('click',function(){ b.closest('.scrim').classList.remove('on'); });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.scrim'),function(s){
+    s.addEventListener('click',function(e){ if(e.target===s) s.classList.remove('on'); });
+  });
+
+  renderGrid(); renderTray(); renderTabBadge();
+})();
+</script>
+</body>
+</html>
