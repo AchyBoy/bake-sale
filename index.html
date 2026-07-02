@@ -147,6 +147,9 @@
   .tabitem .ti-amt{font-weight:900;font-size:20px;color:var(--red)}
   .tabitem .ti-pay{background:var(--green);color:#fff;border:none;border-radius:10px;padding:9px 12px;font-weight:800;font-size:13px;cursor:pointer}
   .tabitem .ti-del{background:#f3e6e4;color:var(--red);border:none;border-radius:10px;padding:9px 11px;font-size:15px;cursor:pointer}
+  .tabitem.voided{opacity:.72;background:#f4eede;border-style:dashed}
+  .tabitem .ti-restore{background:#e2f5e7;color:var(--green-dk);border:none;border-radius:10px;padding:9px 12px;font-weight:800;font-size:13px;cursor:pointer}
+  .removed-hdr{margin:14px 0 8px;font-size:12px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
   .notabs{color:var(--muted);text-align:center;padding:24px 0;font-size:15px}
   .subtle{color:var(--muted);font-size:13px}
   .dangerlink{background:none;border:none;color:var(--red);font-weight:700;font-size:14px;text-decoration:underline;cursor:pointer;padding:6px 0}
@@ -348,6 +351,8 @@
 
   /* ---------- tabs ---------- */
   function tabById(id){ for(var i=0;i<state.tabs.length;i++) if(state.tabs[i].id===id) return state.tabs[i]; return null; }
+  function activeTabs(){ return state.tabs.filter(function(t){return !t.voided;}); }
+  function voidedTabs(){ return state.tabs.filter(function(t){return t.voided;}); }
   function orderSnapshot(){
     var arr=[]; for(var id in order){ var it=itemById(id); if(it) arr.push({name:it.name,price:it.price,qty:order[id]}); } return arr;
   }
@@ -376,11 +381,10 @@
   function startOrUpdateTab(){
     if(editingTabId){
       var t=tabById(editingTabId);
-      if(!orderCount()){ // emptied while editing -> delete the tab (undoable)
-        var removed=t;
-        state.tabs=state.tabs.filter(function(x){return x.id!==editingTabId;});
-        save(); clearOrder();
-        flash('Tab deleted','Undo',function(){ if(removed){ state.tabs.push(removed); save(); renderTabBadge(); } });
+      if(!orderCount()){ // emptied while editing -> soft-void (kept as a record, not counted)
+        if(t){ t.voided=true; t.voidedTs=Date.now(); save(); }
+        clearOrder();
+        flash('Tab removed (not counted)','Undo',function(){ if(t){ delete t.voided; delete t.voidedTs; save(); renderTabBadge(); } });
         return;
       }
       if(t){ t.lines=orderSnapshot(); save(); }
@@ -398,7 +402,8 @@
 
   function renderTabBadge(){
     var dot=document.getElementById('tabDot');
-    if(state.tabs.length){ dot.style.display='flex'; dot.textContent=state.tabs.length; }
+    var n=activeTabs().length;
+    if(n){ dot.style.display='flex'; dot.textContent=n; }
     else dot.style.display='none';
   }
 
@@ -419,49 +424,77 @@
     window.scrollTo(0,document.body.scrollHeight);
   }
 
-  function renderTabList(){
-    var box=document.getElementById('tabList');
-    if(!state.tabs.length){ box.innerHTML='<div class="notabs">No open tabs.<br><span class="subtle">Ring up an order and hit “Start Tab”.</span></div>'; return; }
-    box.innerHTML='';
-    // newest first
-    state.tabs.slice().sort(function(a,b){return b.ts-a.ts;}).forEach(function(t){
-      var el=document.createElement('div'); el.className='tabitem';
-      var n=0; t.lines.forEach(function(l){n+=l.qty;});
-      el.innerHTML='<div style="flex:1"><div class="ti-nm">'+esc(t.name)+'</div>'+
-                   '<div class="ti-sub">'+n+' item'+(n===1?'':'s')+' • tap to edit</div></div>'+
-                   '<div class="ti-amt">'+money(snapshotTotal(t.lines))+'</div>';
-      var pay=document.createElement('button'); pay.className='ti-pay'; pay.textContent='Paid';
-      pay.addEventListener('click',function(ev){
-        ev.stopPropagation();
-        var amt=snapshotTotal(t.lines), settled=t;
-        state.raised=(state.raised||0)+amt;
-        state.tabs=state.tabs.filter(function(x){return x.id!==t.id;});
-        save(); renderTabList(); renderTabBadge(); renderRaised();
-        flash('Tab settled ✓','Undo',function(){
-          state.raised=Math.max(0,(state.raised||0)-amt);
-          state.tabs.push(settled); save();
-          renderTabBadge(); renderRaised();
-          renderTabList(); openSheet('tabsScrim');
-        });
-        if(!state.tabs.length) closeSheet('tabsScrim');
+  function activeRow(t){
+    var el=document.createElement('div'); el.className='tabitem';
+    var n=0; t.lines.forEach(function(l){n+=l.qty;});
+    el.innerHTML='<div style="flex:1"><div class="ti-nm">'+esc(t.name)+'</div>'+
+                 '<div class="ti-sub">'+n+' item'+(n===1?'':'s')+' • tap to edit</div></div>'+
+                 '<div class="ti-amt">'+money(snapshotTotal(t.lines))+'</div>';
+    var pay=document.createElement('button'); pay.className='ti-pay'; pay.textContent='Paid';
+    pay.addEventListener('click',function(ev){
+      ev.stopPropagation();
+      var amt=snapshotTotal(t.lines), settled=t;
+      state.raised=(state.raised||0)+amt;
+      state.tabs=state.tabs.filter(function(x){return x.id!==t.id;});
+      save(); renderTabList(); renderTabBadge(); renderRaised();
+      flash('Tab settled ✓','Undo',function(){
+        state.raised=Math.max(0,(state.raised||0)-amt);
+        state.tabs.push(settled); save();
+        renderTabBadge(); renderRaised();
+        renderTabList(); openSheet('tabsScrim');
       });
-      el.appendChild(pay);
-      var del=document.createElement('button'); del.className='ti-del'; del.textContent='🗑';
-      del.addEventListener('click',function(ev){
-        ev.stopPropagation();
-        var removed=t;
-        state.tabs=state.tabs.filter(function(x){return x.id!==t.id;});
-        save(); renderTabList(); renderTabBadge();
-        flash('Tab deleted','Undo',function(){
-          state.tabs.push(removed); save();
-          renderTabBadge(); renderTabList(); openSheet('tabsScrim');
-        });
-        if(!state.tabs.length) closeSheet('tabsScrim');
-      });
-      el.appendChild(del);
-      el.addEventListener('click',function(){ openTabIntoOrder(t.id); });
-      box.appendChild(el);
+      if(!activeTabs().length&&!voidedTabs().length) closeSheet('tabsScrim');
     });
+    el.appendChild(pay);
+    var del=document.createElement('button'); del.className='ti-del'; del.textContent='🗑';
+    del.addEventListener('click',function(ev){
+      ev.stopPropagation();
+      t.voided=true; t.voidedTs=Date.now();
+      save(); renderTabList(); renderTabBadge();
+      flash('Tab removed (not counted)','Undo',function(){
+        delete t.voided; delete t.voidedTs; save();
+        renderTabBadge(); renderTabList(); openSheet('tabsScrim');
+      });
+    });
+    el.appendChild(del);
+    el.addEventListener('click',function(){ openTabIntoOrder(t.id); });
+    return el;
+  }
+  function voidedRow(t){
+    var el=document.createElement('div'); el.className='tabitem voided';
+    var n=0; t.lines.forEach(function(l){n+=l.qty;});
+    el.innerHTML='<div style="flex:1"><div class="ti-nm">'+esc(t.name)+'</div>'+
+                 '<div class="ti-sub">removed • '+n+' item'+(n===1?'':'s')+'</div></div>'+
+                 '<div class="ti-amt" style="text-decoration:line-through;color:var(--muted)">'+money(snapshotTotal(t.lines))+'</div>';
+    var restore=document.createElement('button'); restore.className='ti-restore'; restore.textContent='Restore';
+    restore.addEventListener('click',function(ev){
+      ev.stopPropagation();
+      delete t.voided; delete t.voidedTs; save();
+      renderTabList(); renderTabBadge(); flash('Tab restored');
+    });
+    el.appendChild(restore);
+    return el;
+  }
+  function renderTabList(){
+    var box=document.getElementById('tabList'); box.innerHTML='';
+    var active=activeTabs().slice().sort(function(a,b){return b.ts-a.ts;});
+    var voided=voidedTabs().slice().sort(function(a,b){return (b.voidedTs||0)-(a.voidedTs||0);});
+    if(!active.length && !voided.length){
+      box.innerHTML='<div class="notabs">No open tabs.<br><span class="subtle">Ring up an order and hit “Start Tab”.</span></div>';
+      return;
+    }
+    if(!active.length){
+      var none=document.createElement('div'); none.className='subtle';
+      none.style.cssText='text-align:center;padding:8px 0 4px'; none.textContent='No open tabs.';
+      box.appendChild(none);
+    }
+    active.forEach(function(t){ box.appendChild(activeRow(t)); });
+    if(voided.length){
+      var hdr=document.createElement('div'); hdr.className='removed-hdr';
+      hdr.textContent='Removed — not counted ('+voided.length+')';
+      box.appendChild(hdr);
+      voided.forEach(function(t){ box.appendChild(voidedRow(t)); });
+    }
   }
 
   /* ---------- edit menu ---------- */
@@ -512,9 +545,10 @@
     L.push('Raised (paid): '+money(state.raised||0));
     L.push('');
     var owed=0;
-    if(state.tabs.length){
-      L.push('OPEN TABS ('+state.tabs.length+'):');
-      state.tabs.forEach(function(t){
+    var active=activeTabs(), voided=voidedTabs();
+    if(active.length){
+      L.push('OPEN TABS ('+active.length+'):');
+      active.forEach(function(t){
         var tt=snapshotTotal(t.lines); owed+=tt;
         L.push('  • '+t.name+' — '+money(tt));
         t.lines.forEach(function(l){ L.push('       '+l.qty+'x '+l.name+'  '+money(l.price*l.qty)); });
@@ -523,6 +557,11 @@
     L.push('');
     L.push('Still owed on tabs: '+money(owed));
     L.push('GRAND TOTAL (paid + owed): '+money((state.raised||0)+owed));
+    if(voided.length){
+      L.push('');
+      L.push('REMOVED — not counted ('+voided.length+'):');
+      voided.forEach(function(t){ L.push('  • '+t.name+' — '+money(snapshotTotal(t.lines))); });
+    }
     return L.join('\n');
   }
   function openExport(){
