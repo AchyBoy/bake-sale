@@ -84,10 +84,12 @@
     font-size:15px;
   }
   .line:last-child{border-bottom:none}
-  .line .lq{font-weight:800;color:var(--brown);min-width:30px}
+  .line .lminus{background:#efe6d4;border:none;color:var(--ink);width:32px;height:32px;border-radius:9px;font-size:22px;font-weight:800;cursor:pointer;flex:0 0 auto;line-height:1;padding:0}
+  .line .lminus:active{transform:scale(.9)}
+  .line .lq{font-weight:800;color:var(--brown);min-width:28px;text-align:center}
   .line .ln{flex:1;font-weight:600}
   .line .lp{font-weight:700}
-  .line .lx{background:none;border:none;color:var(--muted);font-size:20px;padding:0 2px;cursor:pointer}
+  .line .lx{background:none;border:none;color:var(--muted);font-size:20px;padding:0 2px;cursor:pointer;flex:0 0 auto}
   .emptytray{color:var(--muted);text-align:center;padding:10px 0;font-size:15px}
   .totalrow{display:flex;align-items:baseline;justify-content:space-between;margin:2px 0 10px}
   .totalrow .lbl{font-weight:700;color:var(--muted);font-size:14px}
@@ -105,6 +107,7 @@
   .btn:active{transform:translateY(1px)}
   .btn.paid{background:var(--green);border-bottom:3px solid var(--green-dk)}
   .btn.tab{background:var(--brown);border-bottom:3px solid #7a4e29}
+  .btn.del{background:var(--red);border-bottom:3px solid var(--red-dk)}
   .btn.clear{background:#efe6d4;color:var(--muted);box-shadow:none;flex:0 0 54px;font-size:22px}
   .btn:disabled{opacity:.4;pointer-events:none}
   /* ---------- modal / sheet ---------- */
@@ -143,6 +146,7 @@
   .tabitem .ti-sub{color:var(--muted);font-size:12px;font-weight:600}
   .tabitem .ti-amt{font-weight:900;font-size:20px;color:var(--red)}
   .tabitem .ti-pay{background:var(--green);color:#fff;border:none;border-radius:10px;padding:9px 12px;font-weight:800;font-size:13px;cursor:pointer}
+  .tabitem .ti-del{background:#f3e6e4;color:var(--red);border:none;border-radius:10px;padding:9px 11px;font-size:15px;cursor:pointer}
   .notabs{color:var(--muted);text-align:center;padding:24px 0;font-size:15px}
   .subtle{color:var(--muted);font-size:13px}
   .dangerlink{background:none;border:none;color:var(--red);font-weight:700;font-size:14px;text-decoration:underline;cursor:pointer;padding:6px 0}
@@ -285,6 +289,7 @@
   function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 
   function addToOrder(id){ order[id]=(order[id]||0)+1; renderGrid(); renderTray(); }
+  function decOrder(id){ if(!order[id]) return; order[id]-=1; if(order[id]<=0) delete order[id]; renderGrid(); renderTray(); }
   function removeLine(id){ delete order[id]; renderGrid(); renderTray(); }
 
   function orderTotal(){
@@ -304,8 +309,13 @@
         var it=itemById(id); if(!it) return;
         var q=order[id];
         var row=document.createElement('div'); row.className='line';
-        row.innerHTML='<span class="lq">'+q+'×</span><span class="ln">'+esc(it.name)+'</span>'+
-                      '<span class="lp">'+money(it.price*q)+'</span>';
+        var minus=document.createElement('button'); minus.className='lminus'; minus.textContent='−';
+        minus.addEventListener('click',function(){decOrder(id);});
+        row.appendChild(minus);
+        var body=document.createElement('span'); body.style.cssText='display:flex;align-items:center;gap:8px;flex:1';
+        body.innerHTML='<span class="lq">'+q+'×</span><span class="ln">'+esc(it.name)+'</span>'+
+                       '<span class="lp" style="margin-left:auto">'+money(it.price*q)+'</span>';
+        row.appendChild(body);
         var x=document.createElement('button'); x.className='lx'; x.textContent='✕';
         x.addEventListener('click',function(){removeLine(id);});
         row.appendChild(x);
@@ -315,19 +325,20 @@
     document.getElementById('total').textContent=money(orderTotal());
     var has=ids.length>0;
     document.getElementById('paidBtn').disabled=!has;
-    document.getElementById('clearBtn').disabled=!has;
+    // Clear stays live while editing a tab, so an emptied tab isn't a dead end.
+    document.getElementById('clearBtn').disabled=!(has||editingTabId);
     var tabBtn=document.getElementById('tabBtn');
     var nameBox=document.getElementById('tabName');
     if(editingTabId){
       var t=tabById(editingTabId);
       nameBox.style.display='block';
       nameBox.textContent='Tab: '+(t?t.name:'');
-      tabBtn.textContent='Update Tab';
-      tabBtn.disabled=!has;
       document.getElementById('totLbl').textContent='Tab total';
+      if(has){ tabBtn.textContent='Update Tab'; tabBtn.className='btn tab'; tabBtn.disabled=false; }
+      else   { tabBtn.textContent='Delete Tab'; tabBtn.className='btn del'; tabBtn.disabled=false; }
     }else{
       nameBox.style.display='none';
-      tabBtn.textContent='Start Tab';
+      tabBtn.textContent='Start Tab'; tabBtn.className='btn tab';
       tabBtn.disabled=!has;
       document.getElementById('totLbl').textContent='Total';
     }
@@ -363,12 +374,19 @@
   }
 
   function startOrUpdateTab(){
-    if(!orderCount()) return;
     if(editingTabId){
       var t=tabById(editingTabId);
+      if(!orderCount()){ // emptied while editing -> delete the tab (undoable)
+        var removed=t;
+        state.tabs=state.tabs.filter(function(x){return x.id!==editingTabId;});
+        save(); clearOrder();
+        flash('Tab deleted','Undo',function(){ if(removed){ state.tabs.push(removed); save(); renderTabBadge(); } });
+        return;
+      }
       if(t){ t.lines=orderSnapshot(); save(); }
       flash('Tab updated'); clearOrder(); return;
     }
+    if(!orderCount()) return;
     var nm=prompt("Name for this tab? (e.g. red shirt, Miss Amy)");
     if(nm===null) return;
     nm=(nm||'').trim()||('Tab '+(state.tabs.length+1));
@@ -428,6 +446,19 @@
         if(!state.tabs.length) closeSheet('tabsScrim');
       });
       el.appendChild(pay);
+      var del=document.createElement('button'); del.className='ti-del'; del.textContent='🗑';
+      del.addEventListener('click',function(ev){
+        ev.stopPropagation();
+        var removed=t;
+        state.tabs=state.tabs.filter(function(x){return x.id!==t.id;});
+        save(); renderTabList(); renderTabBadge();
+        flash('Tab deleted','Undo',function(){
+          state.tabs.push(removed); save();
+          renderTabBadge(); renderTabList(); openSheet('tabsScrim');
+        });
+        if(!state.tabs.length) closeSheet('tabsScrim');
+      });
+      el.appendChild(del);
       el.addEventListener('click',function(){ openTabIntoOrder(t.id); });
       box.appendChild(el);
     });
